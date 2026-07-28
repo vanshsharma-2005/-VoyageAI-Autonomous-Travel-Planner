@@ -19,7 +19,7 @@ from tools.flight_tool import search_flights
 load_dotenv()
 
 # Groq LLM Setup
-groq_api_key = os.getenv("GROQ_API_KEY", "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")
+groq_api_key = os.getenv("GROQ_API_KEY", )
 llm = ChatGroq(
     model="llama-3.3-70b-versatile",
     api_key=groq_api_key
