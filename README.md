@@ -1,89 +1,96 @@
-# ✈️ VoyageAI — Autonomous Travel Planner UI
+# ✈ Voyager — AI Travel Planner
 
-A luxury, glassmorphism-styled Streamlit Web Application for the **LangGraph Autonomous Travel Planner**.
+An AI travel-planning agent with a Streamlit chat interface. Ask about a
+trip in plain language and Voyager pulls live flight data, searches for
+hotels, and hands back a full itinerary — powered by a LangGraph multi-agent
+pipeline running on Groq's Llama 3.3 70B.
 
-![VoyageAI Banner](assets/travel_banner.png)
+## How it works
 
----
-
-## 🌟 Key Features
-
-- ✈️ **Flight Agent**: Integration with AviationStack for real-time flight search.
-- 🏨 **Hotel Agent**: Integration with Tavily AI for boutique stay discoveries.
-- 🗺️ **Itinerary Agent**: Powered by **Llama 3.3 70B Versatile** via Groq API.
-- ⚡ **LangGraph Workflow**: StateGraph stateful orchestration with PostgreSQL memory fallback.
-- 🎨 **Glassmorphism UI**: High-end dark theme, dynamic metric badges, live progress visualizer, tabbed results, and markdown download options.
-
----
-
-## 📁 Repository Structure
+Every message runs through a fixed 4-step pipeline:
 
 ```
-├── .streamlit/
-│   └── config.toml          # Streamlit theme configuration
-├── assets/
-│   ├── travel_banner.png    # Hero UI banner image
-│   └── travel_card.png      # Feature graphics
+   your message
+        │
+        ▼
+ ┌───────────────┐
+ │ flight_agent  │  → AviationStack flight search
+ └───────┬───────┘
+         ▼
+ ┌───────────────┐
+ │  hotel_agent  │  → Tavily web search for hotels
+ └───────┬───────┘
+         ▼
+ ┌───────────────┐
+ │itinerary_agent│  → Groq LLM drafts a day-by-day plan
+ └───────┬───────┘
+         ▼
+ ┌───────────────┐
+ │  final_agent  │  → Groq LLM writes the final response
+ └───────┬───────┘
+         ▼
+    reply in chat
+```
+
+Conversation memory is handled by a LangGraph checkpointer, keyed per
+browser session. If `DATABASE_URL` is configured it persists to Postgres;
+otherwise it falls back to in-memory (session-only) automatically.
+
+## Tech stack
+
+| Layer            | Tool                                   |
+|-------------------|-----------------------------------------|
+| UI                | Streamlit                                |
+| Agent orchestration | LangGraph (`StateGraph`)               |
+| LLM               | Groq — Llama 3.3 70B Versatile           |
+| Flight data       | [AviationStack](https://aviationstack.com/) |
+| Web / hotel search | [Tavily](https://www.tavily.com/)       |
+| Conversation memory | Postgres (optional) / in-memory fallback |
+
+## Project structure
+
+```
+travel_planner/
+├── frontend.py           # Streamlit UI + LangGraph pipeline (run this)
+├── main.ipynb             # original notebook prototype
 ├── tools/
-│   ├── __init__.py
-│   ├── tavily_tool.py       # Tavily AI Search Tool
-│   └── flight_tool.py       # AviationStack Flight Search Tool
-├── app.py                   # Main Streamlit Application
-├── requirements.txt         # Dependencies for Streamlit Cloud
-├── .env.example             # Template for API keys
-└── .gitignore               # Keeps API keys safe
+│   ├── flight_tool.py      # AviationStack flight search
+│   └── tavily_tool.py      # Tavily web search
+├── requirements.txt
+├── .env.example
+└── .gitignore
 ```
 
----
+## Setup
 
-## 🚀 How to Run Locally
+```bash
+git clone https://github.com/<your-username>/<your-repo>.git
+cd <your-repo>
 
-1. **Clone or Open Project Directory:**
-   ```bash
-   cd streamlit_project
-   ```
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+pip install -r requirements.txt
 
-2. **Install Dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+cp .env.example .env            # fill in your real API keys
+streamlit run frontend.py
+```
 
-3. **Set Up Environment Variables:**
-   Create a `.env` file in the root directory:
-   ```env
-   GROQ_API_KEY=your_groq_api_key
-   TAVILY_API_KEY=your_tavily_api_key
-   AVIATIONSTACK_API_KEY=your_aviationstack_api_key
-   DATABASE_URL=postgresql://postgres:password@localhost:5432/langgraph_memory_demo
-   ```
+## Environment variables
 
-4. **Launch the Streamlit App:**
-   ```bash
-   streamlit run app.py
-   ```
+| Variable                 | Required | Notes                                              |
+|---------------------------|----------|-----------------------------------------------------|
+| `GROQ_API_KEY`             | Yes      | [console.groq.com](https://console.groq.com/)       |
+| `TAVILY_API_KEY`           | Yes      | [tavily.com](https://www.tavily.com/)                |
+| `AVIATIONSTACK_API_KEY`    | Yes      | [aviationstack.com](https://aviationstack.com/)       |
+| `DATABASE_URL`             | No       | Postgres connection string; omit for in-memory-only memory |
 
----
 
-## ☁️ How to Deploy on Streamlit Community Cloud
 
-1. **Push your code to GitHub:**
-   ```bash
-   git init
-   git add .
-   git commit -m "Deploy VoyageAI Streamlit App"
-   git branch -M main
-   git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-   git push -u origin main
-   ```
+## Known limitations
 
-2. **Deploy on Streamlit:**
-   - Go to [share.streamlit.io](https://share.streamlit.io).
-   - Click **"New App"** -> Select your repository & branch (`main`).
-   - Set Main file path: `app.py`.
-   - In **Advanced Settings -> Secrets**, paste your API keys:
-     ```toml
-     GROQ_API_KEY = "your_groq_key"
-     TAVILY_API_KEY = "your_tavily_key"
-     AVIATIONSTACK_API_KEY = "your_aviation_key"
-     ```
-   - Click **Deploy**! 🚀
+- The pipeline is fixed, not intent-routed: it always fetches both flights
+  and hotels, even for questions unrelated to either.
+- `search_flights` doesn't filter by the query text — it currently returns
+  AviationStack's default 5 flights regardless of route asked.
+- Without `DATABASE_URL`, conversation memory resets whenever the app
+  restarts or redeploys.
